@@ -23,7 +23,8 @@
 """
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction
+from qgis.PyQt.QtWidgets import QAction, QFileDialog, QListWidgetItem
+from qgis.core import QgsProject, QgsRasterLayer
 
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -179,6 +180,32 @@ class QgisBlender:
                 action)
             self.iface.removeToolBarIcon(action)
 
+    # Helper methods
+    def populate_raster_list(self):
+        """Fill the dialog list with raster layers from the current project."""
+        # Start by clearing the list
+        self.dlg.listWidget_rasters.clear()
+
+        for layer in QgsProject.instance().mapLayers().values():
+            if isinstance(layer, QgsRasterLayer):
+                item = QListWidgetItem(layer.name())
+                item.setData(256, layer)
+                self.dlg.listWidget_rasters.addItem(item)
+
+    def browse_output(self):
+        """Open a dave dialog and put the path into the output line"""
+        path, _ = QFileDialog.getSaveFileName(
+            self.dlg,
+            "Save output GeoTIFF",
+            "",
+            "GeoTIFF (*.tif *.tiff)"
+        )
+
+        if path: 
+            if not path.lower().endswith(('.tif', '.tiff')):
+                path += ".tif"
+            self.dlg.lineEdit_output.setText(path)
+            
 
     def run(self):
         """Run method that performs all the real work"""
@@ -189,12 +216,48 @@ class QgisBlender:
             self.first_start = False
             self.dlg = QgisBlenderDialog()
 
+            # Connect dialog buttons to widgets
+            self.dlg.pushButton_browse.clicked.connect(self.browse_output)
+
+        # Refresh the list of rasters each time the dialog opens
+        self.populate_raster_list()
+
         # show the dialog
         self.dlg.show()
         # Run the dialog event loop
         result = self.dlg.exec_()
         # See if OK was pressed
         if result:
-            # Do something useful here - delete the line containing pass and
-            # substitute with your code.
-            pass
+            # Confirm plugin is running
+            self.iface.messageBar().pushInfo("QgisBlender", "Hello!")
+
+            selected_items = self.dlg.listWidget_rasters.selectedItems()
+            rasters = [item.data(256) for item in selected_items]
+            out_path = self.dlg.lineEdit_output.text().strip()
+
+            if not rasters:
+                self.iface.messageBar().pushWarning(
+                    "Qgis2Blender",
+                    "Please select at least one raster layer."
+                )
+                return
+            
+            if not out_path:
+                self.iface.messageBar().pushWarning(
+                    "Qgis2Blender",
+                    "Please choose an output file path."
+                )
+
+            # Debug: confirm we can read the inputs: 
+            raster_names = ", ".join([r.name() for r in rasters])
+            self.iface.messageBar().pushInfo(
+                "Qgis2Blender",
+                f"Selected {len(rasters)} raster(s): {raster_names}"
+            )
+
+            print("[Qgis2Blender] Output path:", out_path)
+
+
+
+
+
