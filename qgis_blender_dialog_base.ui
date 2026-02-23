@@ -28,7 +28,7 @@
         <property name="geometry">
          <rect>
           <x>0</x>
-          <y>-273</y>
+          <y>-299</y>
           <width>767</width>
           <height>942</height>
          </rect>
@@ -51,7 +51,7 @@
           </widget>
          </item>
          <item>
-          <widget class="QGroupBox" name="groupBox_2">
+          <widget class="QGroupBox" name="groupBox_merge">
            <property name="title">
             <string>Merge</string>
            </property>
@@ -70,7 +70,7 @@
           </widget>
          </item>
          <item>
-          <widget class="QGroupBox" name="groupBox_3">
+          <widget class="QGroupBox" name="groupBox_warp">
            <property name="title">
             <string>Reproject</string>
            </property>
@@ -103,7 +103,7 @@
           </widget>
          </item>
          <item>
-          <widget class="QGroupBox" name="groupBox_4">
+          <widget class="QGroupBox" name="groupBox_clip">
            <property name="title">
             <string>Area of Interest</string>
            </property>
@@ -129,7 +129,7 @@
           </widget>
          </item>
          <item>
-          <widget class="QGroupBox" name="groupBox_7">
+          <widget class="QGroupBox" name="groupBox_rescale">
            <property name="title">
             <string>Rescale</string>
            </property>
@@ -161,13 +161,13 @@
           </widget>
          </item>
          <item>
-          <widget class="QGroupBox" name="groupBox">
+          <widget class="QGroupBox" name="groupBox_output">
            <property name="title">
             <string>Output</string>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_8">
             <item>
-             <layout class="QHBoxLayout" name="horizontalLayout_3">
+             <layout class="QHBoxLayout" name="horizontalLayout">
               <item>
                <widget class="QLineEdit" name="lineEdit_output"/>
               </item>
