@@ -221,10 +221,17 @@ class QgisBlender:
                 path += ".tif"
             self.dlg.lineEdit_output.setText(path)
             
-
     def read_selected_rasters(self):
         items = self.dlg.listWidget_rasters.selectedItems()
         return[it.data(Qt.UserRole) for it in items]
+    
+    def read_step_args(self):
+        return{
+            "merge": self.dlg.plainTextEdit_merge_args.toPlainText().strip(),
+            "warp": self.dlg.plainTextEdit_warp_args.toPlainText().strip(),
+            "clip": self.dlg.plainTextEdit_clip_args.toPlainText().strip(),
+            "translate": self.dlg.plainTextEdit_translate_args.toPlainText().strip(),
+        }
 
     def run(self):
         """Run method that performs all the real work"""
