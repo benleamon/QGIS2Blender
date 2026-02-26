@@ -222,6 +222,10 @@ class QgisBlender:
             self.dlg.lineEdit_output.setText(path)
             
 
+    def read_selected_rasters(self):
+        items = self.dlg.listWidget_rasters.selectedItems()
+        return[it.data(Qt.UserRole) for it in items]
+
     def run(self):
         """Run method that performs all the real work"""
 
