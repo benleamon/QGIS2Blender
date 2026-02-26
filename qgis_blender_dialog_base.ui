@@ -28,9 +28,9 @@
         <property name="geometry">
          <rect>
           <x>0</x>
-          <y>-299</y>
+          <y>-258</y>
           <width>767</width>
-          <height>942</height>
+          <height>926</height>
          </rect>
         </property>
         <layout class="QVBoxLayout" name="verticalLayout_6">
@@ -93,13 +93,13 @@
              </widget>
             </item>
             <item>
-             <widget class="QPlainTextEdit" name="plainTextEdit_2_warp_args"/>
+             <widget class="QPlainTextEdit" name="plainTextEdit_warp_args"/>
             </item>
            </layout>
            <zorder>label_5</zorder>
            <zorder>label_6</zorder>
            <zorder>lineEdit_target_crs</zorder>
-           <zorder>plainTextEdit_2_warp_args</zorder>
+           <zorder>plainTextEdit_warp_args</zorder>
           </widget>
          </item>
          <item>
@@ -145,7 +145,7 @@
              </widget>
             </item>
             <item>
-             <widget class="QLineEdit" name="lineEdit_2"/>
+             <widget class="QLineEdit" name="lineEdit_rescale_min_value"/>
             </item>
             <item>
              <widget class="QLabel" name="label_2">
@@ -155,7 +155,7 @@
              </widget>
             </item>
             <item>
-             <widget class="QLineEdit" name="lineEdit_3"/>
+             <widget class="QLineEdit" name="lineEdit_rescale_max_value"/>
             </item>
            </layout>
           </widget>

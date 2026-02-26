@@ -21,7 +21,7 @@
  *                                                                         *
  ***************************************************************************/
 """
-from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
+from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction, QFileDialog, QListWidgetItem
 from qgis.core import QgsProject, QgsRasterLayer
@@ -67,6 +67,14 @@ class QgisBlender:
         # Check if plugin was started the first time in current QGIS session
         # Must be set in initGui() to survive plugin reloads
         self.first_start = None
+        
+        # Plugin Defaults
+        self.default_gdal_args = {
+            "merge": "",
+            "warp": "",
+            "clip": "",
+            "translate": "-co COMPRESS=LZW -co TILED=YES"
+        }
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -192,8 +200,15 @@ class QgisBlender:
                 item.setData(256, layer)
                 self.dlg.listWidget_rasters.addItem(item)
 
+    def populate_default_args(self):
+        """Populate the dialog with default values"""
+        self.dlg.plainTextEdit_merge_args.setPlainText(self.default_gdal_args["merge"])
+        self.dlg.plainTextEdit_warp_args.setPlainText(self.default_gdal_args["warp"])
+        self.dlg.plainTextEdit_clip_args.setPlainText(self.default_gdal_args["clip"])
+        self.dlg.plainTextEdit_translate_args.setPlainText(self.default_gdal_args["translate"])
+
     def browse_output(self):
-        """Open a dave dialog and put the path into the output line"""
+        """Open a save dialog and put the path into the output line"""
         path, _ = QFileDialog.getSaveFileName(
             self.dlg,
             "Save output GeoTIFF",
@@ -224,6 +239,8 @@ class QgisBlender:
 
         # show the dialog
         self.dlg.show()
+        # Populate defaults 
+        self.populate_default_args()
         # Run the dialog event loop
         result = self.dlg.exec_()
         # See if OK was pressed
