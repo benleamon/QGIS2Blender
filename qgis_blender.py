@@ -238,6 +238,72 @@ class QgisBlender:
             "clip": self.dlg.plainTextEdit_clip_args.toPlainText().strip(),
             "translate": self.dlg.plainTextEdit_translate_args.toPlainText().strip(),
         }
+    def pipeline_v1(self, raster_layer:QgsRasterLayer, out_path:str, target_crs_text:str):
+        """
+        Version 1 Pipeline: 
+        Warp, clip by extent (viewport), translate (final export)
+        """
+        step_args = self.read_step_args()
+        
+        # Parse target CRS: 
+        target_crs = QgsCoordinateReferenceSystem(target_crs_text)
+        if not target_crs.isValid():
+            raise ValueError(f"Invalid CRS: '{target_crs_text}'. Please use an EPSG code.")
+        
+        # Transform canvas extent to target CRS: 
+        canvas = self.iface.mapCanvas()
+        canvas_extent = canvas.extent()
+
+        project = QgsProject.instance()
+        canvas_crs = canvas.mapSettings().destinationCrs()
+
+        xform = QgsCoordinateTransform(canvas_crs, target_crs, project)
+        target_extent = xform.transformBoundingBox(canvas_extent)
+
+        extent_str = f"{target_extent.xMinimum()},{target_extent.xMaximum()},{target_extent.yMinimum()},{target_extent.yMaximum()}"
+
+        # Temp working directory for intermediates
+        workdir = tempfile.mkdtemp(prefix="qgis_blender_")
+        warp_out = os.path.join(workdir, "01_warp.tif")
+        clip_out = os.path.join(workdir, "02_clip.tif")
+
+        QgsMessageLog.logMessage(f"Workdir: {workdir}", "QgisBlender", Qgis.Info)
+        QgsMessageLog.logMessage(f"Target CRS: {target_crs.authid()}", "QgisBlender", Qgis.Info)
+        QgsMessageLog.logMessage(f"Target extent: {extent_str}", "QgisBlender", Qgis.Info)
+
+        # Reproject (Warp)
+        warp_params = {
+            "INPUT": raster_layer.source(),
+            "TARGET_CRS": target_crs,
+            "EXTRA": step_args['warp'],
+            "OUTPUT": warp_out,
+        }
+        processing.run("gdal:warpreproject", warp_params)
+
+        # Clip by extent
+        clip_params = {
+            "INPUT": warp_out,
+            "PROJWIN": extent_str,   # xmin,xmax,ymin,ymax in TARGET CRS
+            "EXTRA": step_args["clip"],
+            "OUTPUT": clip_out,
+        }
+        processing.run("gdal:cliprasterbyextent", clip_params)
+
+        # Translate to final output
+        translate_params = {
+            "INPUT": clip_out,
+            "EXTRA": step_args["translate"],
+            "OUTPUT": out_path,
+        }
+        processing.run("gdal:translate", translate_params)
+
+        # Add output to project
+        out_layer = QgisRasterLayer(out_path, os.path.basename(out_path))
+        if not out_layer.isValid():
+            raise RuntimeError("Output file was written but QGIS could not load it as a raster layer.")
+        
+        QgisProject.instance().addMapLayer(out_layer)
+        self.iface.messageBar().pushSuccess("QGIS2Blender", "Created output and added to project.")
 
     def run(self):
         """Run method that performs all the real work"""
@@ -277,14 +343,21 @@ class QgisBlender:
                 self.iface.messageBar().pushWarning("QgisBlender", "Enter a target CRS (e.g. EPSG:3857).")
                 return
             
-            # Confirm plugin is running
-            self.iface.messageBar().pushInfo(
-                "QgisBlender",
-                f"QGIS2Blender: {len(rasters)} raster(s) selected. CRS = {target_crs}"
-            )
+            try:
+                self.pipeline_v1(rasters[0], out_path, target_crs_text)
+            except Exception as e: 
+                self.iface.messageBar().pushCritical("Qgis2Blender", f"Failed: {e}")
+                QgsMessageLog.logMessage(str(e), "QGIS2Blender", Qgis.Critical)
+                raise
 
-            print("QGIS2Blender output:", out_path)
-            print ("QGIS2Blender args:", step_args)
+            # Confirm plugin is running
+            #self.iface.messageBar().pushInfo(
+            #    "QgisBlender",
+            #    f"QGIS2Blender: {len(rasters)} raster(s) selected. CRS = {target_crs}"
+            #)
+
+            #print("QGIS2Blender output:", out_path)
+            #print ("QGIS2Blender args:", step_args)
 
 
 
