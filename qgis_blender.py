@@ -24,7 +24,13 @@
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction, QFileDialog, QListWidgetItem
-from qgis.core import QgsProject, QgsRasterLayer
+from qgis.core import (
+    QgsProject, 
+    QgsRasterLayer,
+    QgsCoordinateReferenceSystem,
+    QgsCoordinateTransform,
+    QgsMessageLog, 
+    Qgis,)
 
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -247,43 +253,40 @@ class QgisBlender:
 
         # Refresh the list of rasters each time the dialog opens
         self.populate_raster_list()
-
-        # show the dialog
-        self.dlg.show()
         # Populate defaults 
         self.populate_default_args()
+        # show the dialog
+        self.dlg.show()
         # Run the dialog event loop
         result = self.dlg.exec_()
+        
         # See if OK was pressed
         if result:
-            # Confirm plugin is running
-            self.iface.messageBar().pushInfo("QgisBlender", "Hello!")
-
-            selected_items = self.dlg.listWidget_rasters.selectedItems()
-            rasters = [item.data(256) for item in selected_items]
+            rasters = self.read_selected_rasters()
             out_path = self.dlg.lineEdit_output.text().strip()
+            target_crs = self.dlg.lineEdit_target_crs.text().strip()
+            step_args = self.read_step_args()
 
             if not rasters:
-                self.iface.messageBar().pushWarning(
-                    "Qgis2Blender",
-                    "Please select at least one raster layer."
-                )
+                self.iface.messageBar().pushWarning("QgisBlender", "Select at least one raster layer.")
+                return
+            if not out_path:
+                self.iface.messageBar().pushWarning("QgisBlender", "Choose an output file path.")
+                return
+            if not target_crs:
+                self.iface.messageBar().pushWarning("QgisBlender", "Enter a target CRS (e.g. EPSG:3857).")
                 return
             
-            if not out_path:
-                self.iface.messageBar().pushWarning(
-                    "Qgis2Blender",
-                    "Please choose an output file path."
-                )
-
-            # Debug: confirm we can read the inputs: 
-            raster_names = ", ".join([r.name() for r in rasters])
+            # Confirm plugin is running
             self.iface.messageBar().pushInfo(
-                "Qgis2Blender",
-                f"Selected {len(rasters)} raster(s): {raster_names}"
+                "QgisBlender",
+                f"QGIS2Blender: {len(rasters)} raster(s) selected. CRS = {target_crs}"
             )
 
-            print("[Qgis2Blender] Output path:", out_path)
+            print("QGIS2Blender output:", out_path)
+            print ("QGIS2Blender args:", step_args)
+
+
 
 
 
