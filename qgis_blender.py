@@ -21,6 +21,9 @@
  *                                                                         *
  ***************************************************************************/
 """
+import os
+import tempfile
+import processing
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction, QFileDialog, QListWidgetItem
@@ -30,13 +33,14 @@ from qgis.core import (
     QgsCoordinateReferenceSystem,
     QgsCoordinateTransform,
     QgsMessageLog, 
-    Qgis,)
+    Qgis,
+    QgsApplication,
+    )
 
 # Initialize Qt resources from file resources.py
 from .resources import *
 # Import the code for the dialog
 from .qgis_blender_dialog import QgisBlenderDialog
-import os.path
 
 
 class QgisBlender:
@@ -195,6 +199,51 @@ class QgisBlender:
             self.iface.removeToolBarIcon(action)
 
     # Helper methods
+    def ensure_proj_db(self):
+        """Ensure PROJ can find proj.db for GDAL tools spawned by Processing."""
+        if getattr(self, "_proj_ready", False):
+            return
+
+        # 1) If user/system already configured PROJ correctly, do nothing
+        for var in ("PROJ_DATA", "PROJ_LIB"):
+            p = os.environ.get(var)
+            if p and os.path.exists(os.path.join(p, "proj.db")):
+                self._proj_ready = True
+                return
+
+        # 2) Try QGIS-provided locations (portable)
+        candidates = []
+        try:
+            candidates.append(os.path.join(QgsApplication.pkgDataPath(), "proj"))
+            # common on some installs
+            candidates.append(os.path.join(QgsApplication.prefixPath(), "share", "proj"))
+        except Exception:
+            pass
+
+        # 3) Pick the first candidate that actually contains proj.db
+        proj_dir = None
+        for c in candidates:
+            if c and os.path.exists(os.path.join(c, "proj.db")):
+                proj_dir = c
+                break
+
+        if not proj_dir:
+            raise RuntimeError(
+                "Could not locate proj.db. Set PROJ_DATA to the folder containing proj.db "
+                "or check your QGIS installation."
+            )
+
+        # 4) Set env vars for this QGIS session (inherited by gdalwarp subprocesses)
+        os.environ.setdefault("PROJ_DATA", proj_dir)
+        os.environ.setdefault("PROJ_LIB", proj_dir)  # compatibility
+
+        QgsMessageLog.logMessage(
+            f"Configured PROJ for session: PROJ_DATA={os.environ.get('PROJ_DATA')}",
+            "QGIS2Blender",
+            Qgis.Info
+        )
+        self._proj_ready = True
+
     def populate_raster_list(self):
         """Fill the dialog list with raster layers from the current project."""
         # Start by clearing the list
@@ -203,7 +252,7 @@ class QgisBlender:
         for layer in QgsProject.instance().mapLayers().values():
             if isinstance(layer, QgsRasterLayer):
                 item = QListWidgetItem(layer.name())
-                item.setData(256, layer)
+                item.setData(Qt.UserRole, layer)
                 self.dlg.listWidget_rasters.addItem(item)
 
     def populate_default_args(self):
@@ -229,10 +278,10 @@ class QgisBlender:
             
     def read_selected_rasters(self):
         items = self.dlg.listWidget_rasters.selectedItems()
-        return[it.data(Qt.UserRole) for it in items]
+        return [it.data(Qt.UserRole) for it in items]
     
     def read_step_args(self):
-        return{
+        return {
             "merge": self.dlg.plainTextEdit_merge_args.toPlainText().strip(),
             "warp": self.dlg.plainTextEdit_warp_args.toPlainText().strip(),
             "clip": self.dlg.plainTextEdit_clip_args.toPlainText().strip(),
@@ -243,6 +292,7 @@ class QgisBlender:
         Version 1 Pipeline: 
         Warp, clip by extent (viewport), translate (final export)
         """
+        #self.ensure_proj_db()
         step_args = self.read_step_args()
         
         # Parse target CRS: 
@@ -274,11 +324,19 @@ class QgisBlender:
         # Reproject (Warp)
         warp_params = {
             "INPUT": raster_layer.source(),
-            "TARGET_CRS": target_crs,
+            "TARGET_CRS": target_crs.authid(),
             "EXTRA": step_args['warp'],
             "OUTPUT": warp_out,
         }
         processing.run("gdal:warpreproject", warp_params)
+        res_warp = processing.run("gdal:warpreproject", warp_params)
+        QgsMessageLog.logMessage(f"Warp result: {res_warp}", "QGIS2Blender", Qgis.Info)
+
+        if not os.path.exists(warp_out):
+            raise RuntimeError(
+                f"Warp step did not create output: {warp_out}\n"
+                "Check Log Messages → Processing for GDAL error details."
+            )
 
         # Clip by extent
         clip_params = {
@@ -298,11 +356,11 @@ class QgisBlender:
         processing.run("gdal:translate", translate_params)
 
         # Add output to project
-        out_layer = QgisRasterLayer(out_path, os.path.basename(out_path))
+        out_layer = QgsRasterLayer(out_path, os.path.basename(out_path))
         if not out_layer.isValid():
             raise RuntimeError("Output file was written but QGIS could not load it as a raster layer.")
         
-        QgisProject.instance().addMapLayer(out_layer)
+        QgsProject.instance().addMapLayer(out_layer)
         self.iface.messageBar().pushSuccess("QGIS2Blender", "Created output and added to project.")
 
     def run(self):
@@ -313,14 +371,14 @@ class QgisBlender:
         if self.first_start == True:
             self.first_start = False
             self.dlg = QgisBlenderDialog()
+            # Populate defaults 
+            self.populate_default_args()
 
             # Connect dialog buttons to widgets
             self.dlg.pushButton_browse.clicked.connect(self.browse_output)
 
         # Refresh the list of rasters each time the dialog opens
         self.populate_raster_list()
-        # Populate defaults 
-        self.populate_default_args()
         # show the dialog
         self.dlg.show()
         # Run the dialog event loop
@@ -344,7 +402,7 @@ class QgisBlender:
                 return
             
             try:
-                self.pipeline_v1(rasters[0], out_path, target_crs_text)
+                self.pipeline_v1(rasters[0], out_path, target_crs)
             except Exception as e: 
                 self.iface.messageBar().pushCritical("Qgis2Blender", f"Failed: {e}")
                 QgsMessageLog.logMessage(str(e), "QGIS2Blender", Qgis.Critical)
