@@ -287,12 +287,42 @@ class QgisBlender:
             "clip": self.dlg.plainTextEdit_clip_args.toPlainText().strip(),
             "translate": self.dlg.plainTextEdit_translate_args.toPlainText().strip(),
         }
-    def pipeline_v1(self, raster_layer:QgsRasterLayer, out_path:str, target_crs_text:str):
+    
+    def build_vrt(self, raster_layers, workdir, merge_extra_args: str):
+        """
+        Build a virtual raster from 2+ input rasters and return the path.
+        Uses gdal:buildvirtualraster.
+        """
+        sources = [layer.source() for layer in raster_layers]
+        vrt_path = os.path.join(workdir, "00_mosaic.vrt")
+
+        params = {
+            "INPUT": sources,
+            "RESOLUTION": 0,   # average
+            "SEPARATE": False,
+            "OUTPUT": vrt_path,
+        }
+
+        merge_extra_args = (merge_extra_args or "").strip()
+        if merge_extra_args:
+            params["EXTRA"] = merge_extra_args
+
+        res_vrt = processing.run("gdal:buildvirtualraster", params)
+        vrt_out = res_vrt.get("OUTPUT", vrt_path)
+
+        QgsMessageLog.logMessage(f"VRT result: {res_vrt}", "QGIS2Blender", Qgis.Info)
+
+        if not os.path.exists(vrt_out):
+            raise RuntimeError(f"VRT step did not create output: {vrt_out}")
+
+        return vrt_out
+
+    def pipeline_v1(self, raster_layers, out_path: str, target_crs_text: str):
         """
         Version 1 Pipeline: 
         Warp, clip by extent (viewport), translate (final export)
         """
-        #self.ensure_proj_db()
+        self.ensure_proj_db()
         step_args = self.read_step_args()
         
         # Parse target CRS: 
@@ -317,34 +347,40 @@ class QgisBlender:
         warp_out = os.path.join(workdir, "01_warp.tif")
         clip_out = os.path.join(workdir, "02_clip.tif")
 
+        # Use single raster directly, or build a VRT for multiple rasters
+        if len(raster_layers) == 1:
+            warp_input = raster_layers[0].source()
+        else:
+            warp_input = self.build_vrt(raster_layers, workdir, step_args["merge"])
+
         QgsMessageLog.logMessage(f"Workdir: {workdir}", "QgisBlender", Qgis.Info)
         QgsMessageLog.logMessage(f"Target CRS: {target_crs.authid()}", "QgisBlender", Qgis.Info)
         QgsMessageLog.logMessage(f"Target extent: {extent_str}", "QgisBlender", Qgis.Info)
 
         # Reproject (Warp)
         warp_params = {
-            "INPUT": raster_layer.source(),
+            "INPUT": warp_input,
             "TARGET_CRS": target_crs.authid(),
-            "EXTRA": step_args['warp'],
+            "EXTRA": step_args["warp"],
             "OUTPUT": warp_out,
         }
-        processing.run("gdal:warpreproject", warp_params)
         res_warp = processing.run("gdal:warpreproject", warp_params)
-        QgsMessageLog.logMessage(f"Warp result: {res_warp}", "QGIS2Blender", Qgis.Info)
+        warp_out_actual = res_warp.get("OUTPUT", warp_out)
 
-        if not os.path.exists(warp_out):
+        if not os.path.exists(warp_out_actual):
             raise RuntimeError(
-                f"Warp step did not create output: {warp_out}\n"
-                "Check Log Messages → Processing for GDAL error details."
-            )
+            f"Warp step did not create output: {warp_out_actual}\n"
+            "Check Log Messages → Processing for GDAL error details."
+        )
 
         # Clip by extent
         clip_params = {
-            "INPUT": warp_out,
-            "PROJWIN": extent_str,   # xmin,xmax,ymin,ymax in TARGET CRS
+            "INPUT": warp_out_actual,
+            "PROJWIN": extent_str,
             "EXTRA": step_args["clip"],
             "OUTPUT": clip_out,
         }
+
         processing.run("gdal:cliprasterbyextent", clip_params)
 
         # Translate to final output
@@ -402,7 +438,7 @@ class QgisBlender:
                 return
             
             try:
-                self.pipeline_v1(rasters[0], out_path, target_crs)
+                self.pipeline_v1(rasters, out_path, target_crs)
             except Exception as e: 
                 self.iface.messageBar().pushCritical("Qgis2Blender", f"Failed: {e}")
                 QgsMessageLog.logMessage(str(e), "QGIS2Blender", Qgis.Critical)
