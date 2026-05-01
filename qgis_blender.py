@@ -375,12 +375,44 @@ class QgisBlender:
             )
 
         return clip_out_actual
+    
+    def get_raster_min_max(self, raster_path):
+        """Return min and max for band 1 of a raster."""
+        layer = QgsRasterLayer(raster_path, "temp_stats_layer")
+        if not layer.isValid():
+            raise RuntimeError(f"Could not load raster for stats: {raster_path}")
 
-    def step_translate(self, input_path, translate_args, output_path):
-        """Translate clipped raster to final output path."""
+        provider = layer.dataProvider()
+        stats = provider.bandStatistics(1)
+
+        min_val = stats.minimumValue
+        max_val = stats.maximumValue
+
+        if min_val == max_val:
+            raise RuntimeError(
+                f"Raster min and max are identical ({min_val}). Cannot rescale to 0-65535."
+            )
+
+        QgsMessageLog.logMessage(
+            f"Raster stats for scaling: min={min_val}, max={max_val}",
+            "QGIS2Blender",
+            Qgis.Info
+        )
+
+        return min_val, max_val
+
+    def step_translate(self, input_path, translate_args, output_path, do_scale=True):
+        """Translate raster to final output path, optionally scaling to UInt16."""
+        extra_args = (translate_args or "").strip()
+
+        if do_scale:
+            min_val, max_val = self.get_raster_min_max(input_path)
+            scale_args = f"-scale {min_val} {max_val} 0 65535 -ot UInt16"
+            extra_args = f"{scale_args} {extra_args}".strip()
+
         translate_params = {
             "INPUT": input_path,
-            "EXTRA": translate_args,
+            "EXTRA": extra_args,
             "OUTPUT": output_path,
         }
 
