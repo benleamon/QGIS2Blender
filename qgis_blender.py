@@ -298,7 +298,7 @@ class QgisBlender:
 
         params = {
             "INPUT": sources,
-            "RESOLUTION": 0,   # average
+            "RESOLUTION": 0,
             "SEPARATE": False,
             "OUTPUT": vrt_path,
         }
@@ -308,29 +308,16 @@ class QgisBlender:
             params["EXTRA"] = merge_extra_args
 
         res_vrt = processing.run("gdal:buildvirtualraster", params)
-        vrt_out = res_vrt.get("OUTPUT", vrt_path)
-
         QgsMessageLog.logMessage(f"VRT result: {res_vrt}", "QGIS2Blender", Qgis.Info)
 
+        vrt_out = res_vrt.get("OUTPUT", vrt_path)
         if not os.path.exists(vrt_out):
             raise RuntimeError(f"VRT step did not create output: {vrt_out}")
 
         return vrt_out
-
-    def pipeline_v1(self, raster_layers, out_path: str, target_crs_text: str):
-        """
-        Version 1 Pipeline: 
-        Warp, clip by extent (viewport), translate (final export)
-        """
-        self.ensure_proj_db()
-        step_args = self.read_step_args()
-        
-        # Parse target CRS: 
-        target_crs = QgsCoordinateReferenceSystem(target_crs_text)
-        if not target_crs.isValid():
-            raise ValueError(f"Invalid CRS: '{target_crs_text}'. Please use an EPSG code.")
-        
-        # Transform canvas extent to target CRS: 
+    
+    def compute_target_extent(self, target_crs):
+        """Transform current canvas extent into the target CRS."""
         canvas = self.iface.mapCanvas()
         canvas_extent = canvas.extent()
 
@@ -338,64 +325,113 @@ class QgisBlender:
         canvas_crs = canvas.mapSettings().destinationCrs()
 
         xform = QgsCoordinateTransform(canvas_crs, target_crs, project)
-        target_extent = xform.transformBoundingBox(canvas_extent)
+        return xform.transformBoundingBox(canvas_extent)
 
-        extent_str = f"{target_extent.xMinimum()},{target_extent.xMaximum()},{target_extent.yMinimum()},{target_extent.yMaximum()}"
+    def step_warp(self, input_path, target_crs, warp_args, output_path):
+        """Reproject input raster/VRT into target CRS."""
+        warp_params = {
+            "INPUT": input_path,
+            "TARGET_CRS": target_crs.authid(),
+            "EXTRA": warp_args,
+            "OUTPUT": output_path,
+        }
 
-        # Temp working directory for intermediates
+        res_warp = processing.run("gdal:warpreproject", warp_params)
+        QgsMessageLog.logMessage(f"Warp result: {res_warp}", "QGIS2Blender", Qgis.Info)
+
+        warp_out_actual = res_warp.get("OUTPUT", output_path)
+        if not os.path.exists(warp_out_actual):
+            raise RuntimeError(
+                f"Warp step did not create output: {warp_out_actual}\n"
+                "Check Log Messages → Processing for GDAL error details."
+            )
+
+        return warp_out_actual
+    
+    def step_clip(self, input_path, target_extent, clip_args, output_path):
+        """Clip raster by transformed canvas extent."""
+        extent_str = (
+            f"{target_extent.xMinimum()},"
+            f"{target_extent.xMaximum()},"
+            f"{target_extent.yMinimum()},"
+            f"{target_extent.yMaximum()}"
+        )
+
+        clip_params = {
+            "INPUT": input_path,
+            "PROJWIN": extent_str,
+            "EXTRA": clip_args,
+            "OUTPUT": output_path,
+        }
+
+        res_clip = processing.run("gdal:cliprasterbyextent", clip_params)
+        QgsMessageLog.logMessage(f"Clip result: {res_clip}", "QGIS2Blender", Qgis.Info)
+
+        clip_out_actual = res_clip.get("OUTPUT", output_path)
+        if not os.path.exists(clip_out_actual):
+            raise RuntimeError(
+                f"Clip step did not create output: {clip_out_actual}\n"
+                "Check Log Messages → Processing for GDAL error details."
+            )
+
+        return clip_out_actual
+
+    def step_translate(self, input_path, translate_args, output_path):
+        """Translate clipped raster to final output path."""
+        translate_params = {
+            "INPUT": input_path,
+            "EXTRA": translate_args,
+            "OUTPUT": output_path,
+        }
+
+        res_translate = processing.run("gdal:translate", translate_params)
+        QgsMessageLog.logMessage(f"Translate result: {res_translate}", "QGIS2Blender", Qgis.Info)
+
+        final_out = res_translate.get("OUTPUT", output_path)
+        if not os.path.exists(final_out):
+            raise RuntimeError(
+                f"Translate step did not create output: {final_out}\n"
+                "Check Log Messages → Processing for GDAL error details."
+            )
+
+        return final_out
+
+
+    def pipeline_v1(self, raster_layers, out_path: str, target_crs_text: str):
+        """
+        Version 1 pipeline:
+        optional VRT -> warp -> clip -> translate
+        """
+        self.ensure_proj_db()
+        step_args = self.read_step_args()
+
+        target_crs = QgsCoordinateReferenceSystem(target_crs_text)
+        if not target_crs.isValid():
+            raise ValueError(f"Invalid CRS: '{target_crs_text}'. Please use an EPSG code.")
+
         workdir = tempfile.mkdtemp(prefix="qgis_blender_")
-        warp_out = os.path.join(workdir, "01_warp.tif")
-        clip_out = os.path.join(workdir, "02_clip.tif")
+        QgsMessageLog.logMessage(f"Workdir: {workdir}", "QGIS2Blender", Qgis.Info)
+        QgsMessageLog.logMessage(f"Target CRS: {target_crs.authid()}", "QGIS2Blender", Qgis.Info)
 
-        # Use single raster directly, or build a VRT for multiple rasters
+        # Decide what feeds the warp step
         if len(raster_layers) == 1:
             warp_input = raster_layers[0].source()
         else:
             warp_input = self.build_vrt(raster_layers, workdir, step_args["merge"])
 
-        QgsMessageLog.logMessage(f"Workdir: {workdir}", "QgisBlender", Qgis.Info)
-        QgsMessageLog.logMessage(f"Target CRS: {target_crs.authid()}", "QgisBlender", Qgis.Info)
-        QgsMessageLog.logMessage(f"Target extent: {extent_str}", "QgisBlender", Qgis.Info)
+        target_extent = self.compute_target_extent(target_crs)
 
-        # Reproject (Warp)
-        warp_params = {
-            "INPUT": warp_input,
-            "TARGET_CRS": target_crs.authid(),
-            "EXTRA": step_args["warp"],
-            "OUTPUT": warp_out,
-        }
-        res_warp = processing.run("gdal:warpreproject", warp_params)
-        warp_out_actual = res_warp.get("OUTPUT", warp_out)
+        warp_out = os.path.join(workdir, "01_warp.tif")
+        clip_out = os.path.join(workdir, "02_clip.tif")
 
-        if not os.path.exists(warp_out_actual):
-            raise RuntimeError(
-            f"Warp step did not create output: {warp_out_actual}\n"
-            "Check Log Messages → Processing for GDAL error details."
-        )
+        warped = self.step_warp(warp_input, target_crs, step_args["warp"], warp_out)
+        clipped = self.step_clip(warped, target_extent, step_args["clip"], clip_out)
+        final_out = self.step_translate(clipped, step_args["translate"], out_path)
 
-        # Clip by extent
-        clip_params = {
-            "INPUT": warp_out_actual,
-            "PROJWIN": extent_str,
-            "EXTRA": step_args["clip"],
-            "OUTPUT": clip_out,
-        }
-
-        processing.run("gdal:cliprasterbyextent", clip_params)
-
-        # Translate to final output
-        translate_params = {
-            "INPUT": clip_out,
-            "EXTRA": step_args["translate"],
-            "OUTPUT": out_path,
-        }
-        processing.run("gdal:translate", translate_params)
-
-        # Add output to project
-        out_layer = QgsRasterLayer(out_path, os.path.basename(out_path))
+        out_layer = QgsRasterLayer(final_out, os.path.basename(final_out))
         if not out_layer.isValid():
             raise RuntimeError("Output file was written but QGIS could not load it as a raster layer.")
-        
+
         QgsProject.instance().addMapLayer(out_layer)
         self.iface.messageBar().pushSuccess("QGIS2Blender", "Created output and added to project.")
 
@@ -425,7 +461,8 @@ class QgisBlender:
             rasters = self.read_selected_rasters()
             out_path = self.dlg.lineEdit_output.text().strip()
             target_crs = self.dlg.lineEdit_target_crs.text().strip()
-            step_args = self.read_step_args()
+            # TK I think this line can be removed. 
+            #step_args = self.read_step_args()
 
             if not rasters:
                 self.iface.messageBar().pushWarning("QgisBlender", "Select at least one raster layer.")
