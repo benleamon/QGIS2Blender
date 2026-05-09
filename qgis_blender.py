@@ -28,6 +28,8 @@ from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction, QFileDialog, QListWidgetItem
 from qgis.core import (
+    QgsVectorLayer,
+    QgsWkbTypes,
     QgsProject, 
     QgsRasterLayer,
     QgsCoordinateReferenceSystem,
@@ -255,6 +257,22 @@ class QgisBlender:
                 item.setData(Qt.UserRole, layer)
                 self.dlg.listWidget_rasters.addItem(item)
 
+    def populate_mask_layer_combo(self):
+        """Fill the AOI mask combo box with polygon vector layers."""
+        self.dlg.comboBox_mask_layer.clear()
+
+        # First option: no mask / no AOI clipping
+        self.dlg.comboBox_mask_layer.addItem(
+            "None — use full selected raster extent",
+            None
+        )
+
+        for layer in QgsProject.instance().mapLayers().values():
+            if isinstance(layer, QgsVectorLayer):
+                geom_type = QgsWkbTypes.geometryType(layer.wkbType())
+                if geom_type == QgsWkbTypes.PolygonGeometry:
+                    self.dlg.comboBox_mask_layer.addItem(layer.name(), layer)
+
     def populate_default_args(self):
         """Populate the dialog with default values"""
         self.dlg.plainTextEdit_merge_args.setPlainText(self.default_gdal_args["merge"])
@@ -316,6 +334,7 @@ class QgisBlender:
 
         return vrt_out
     
+    # Currently unused
     def compute_target_extent(self, target_crs):
         """Transform current canvas extent into the target CRS."""
         canvas = self.iface.mapCanvas()
@@ -326,6 +345,14 @@ class QgisBlender:
 
         xform = QgsCoordinateTransform(canvas_crs, target_crs, project)
         return xform.transformBoundingBox(canvas_extent)
+    
+    def read_mask_layer(self):
+        """Return the selected polygon mask layer from the combo box."""
+        idx = self.dlg.comboBox_mask_layer.currentIndex()
+        if idx < 0:
+            return None
+        return self.dlg.comboBox_mask_layer.itemData(idx)   
+
 
     def step_warp(self, input_path, target_crs, warp_args, output_path):
         """Reproject input raster/VRT into target CRS."""
@@ -348,6 +375,40 @@ class QgisBlender:
 
         return warp_out_actual
     
+    def step_clip_by_mask(self, input_path, mask_layer, target_crs, clip_args, output_path):
+        """Clip raster by polygon mask layer."""
+        clip_params = {
+            "INPUT": input_path,
+            "MASK": mask_layer,
+            "SOURCE_CRS": target_crs.authid(),
+            "TARGET_CRS": target_crs.authid(),
+            "NODATA": None,
+            "ALPHA_BAND": False,
+            "CROP_TO_CUTLINE": True,
+            "KEEP_RESOLUTION": False,
+            "SET_RESOLUTION": False,
+            "X_RESOLUTION": None,
+            "Y_RESOLUTION": None,
+            "MULTITHREADING": False,
+            "OPTIONS": "",
+            "DATA_TYPE": 0,
+            "EXTRA": clip_args,
+            "OUTPUT": output_path,
+        }
+
+        res_clip = processing.run("gdal:cliprasterbymasklayer", clip_params)
+        QgsMessageLog.logMessage(f"Mask clip result: {res_clip}", "QGIS2Blender", Qgis.Info)
+
+        clip_out_actual = res_clip.get("OUTPUT", output_path)
+        if not os.path.exists(clip_out_actual):
+            raise RuntimeError(
+                f"Mask clip step did not create output: {clip_out_actual}\n"
+                "Check Log Messages → Processing for GDAL error details."
+            )
+
+        return clip_out_actual
+    
+    # Currently unused. Replaced by step_clip_by_mask(). Keeping for future canvas AOI option. 
     def step_clip(self, input_path, target_extent, clip_args, output_path):
         """Clip raster by transformed canvas extent."""
         extent_str = (
@@ -429,7 +490,7 @@ class QgisBlender:
         return final_out
 
 
-    def pipeline_v1(self, raster_layers, out_path: str, target_crs_text: str):
+    def pipeline_v1(self, raster_layers, out_path: str, target_crs_text: str, mask_layer):
         """
         Version 1 pipeline:
         optional VRT -> warp -> clip -> translate
@@ -451,14 +512,40 @@ class QgisBlender:
         else:
             warp_input = self.build_vrt(raster_layers, workdir, step_args["merge"])
 
-        target_extent = self.compute_target_extent(target_crs)
+        # No longer needed since we're using mask for AOI
+        #target_extent = self.compute_target_extent(target_crs)
 
         warp_out = os.path.join(workdir, "01_warp.tif")
         clip_out = os.path.join(workdir, "02_clip.tif")
 
         warped = self.step_warp(warp_input, target_crs, step_args["warp"], warp_out)
-        clipped = self.step_clip(warped, target_extent, step_args["clip"], clip_out)
-        final_out = self.step_translate(clipped, step_args["translate"], out_path)
+
+        if mask_layer is not None:
+            QgsMessageLog.logMessage(
+                f"Using AOI mask layer: {mask_layer.name()}",
+                "QGIS2Blender",
+                Qgis.Info
+            )
+            clipped_or_warped = self.step_clip_by_mask(
+                warped,
+                mask_layer,
+                target_crs,
+                step_args["clip"],
+                clip_out
+            )
+        else:
+            QgsMessageLog.logMessage(
+                "No AOI mask selected; exporting full warped raster/mosaic extent.",
+                "QGIS2Blender",
+                Qgis.Info
+            )
+            clipped_or_warped = warped
+
+        final_out = self.step_translate(
+            clipped_or_warped,
+            step_args["translate"],
+            out_path
+        )
 
         out_layer = QgsRasterLayer(final_out, os.path.basename(final_out))
         if not out_layer.isValid():
@@ -483,6 +570,8 @@ class QgisBlender:
 
         # Refresh the list of rasters each time the dialog opens
         self.populate_raster_list()
+        # Refresh the list of clipping layers each time the dialog opens 
+        self.populate_mask_layer_combo()
         # show the dialog
         self.dlg.show()
         # Run the dialog event loop
@@ -493,6 +582,8 @@ class QgisBlender:
             rasters = self.read_selected_rasters()
             out_path = self.dlg.lineEdit_output.text().strip()
             target_crs = self.dlg.lineEdit_target_crs.text().strip()
+            mask_layer = self.read_mask_layer()
+            
             # TK I think this line can be removed. 
             #step_args = self.read_step_args()
 
@@ -505,9 +596,16 @@ class QgisBlender:
             if not target_crs:
                 self.iface.messageBar().pushWarning("QgisBlender", "Enter a target CRS (e.g. EPSG:3857).")
                 return
+            # I think we don't actually want this... just default to using the whole DEM if no clip-mask.
+            # if mask_layer is None:
+            #     self.iface.messageBar().pushWarning(
+            #         "QGIS2Blender",
+            #         "Select a polygon mask layer for the AOI."
+            #     )
+            #     return
             
             try:
-                self.pipeline_v1(rasters, out_path, target_crs)
+                self.pipeline_v1(rasters, out_path, target_crs, mask_layer)
             except Exception as e: 
                 self.iface.messageBar().pushCritical("Qgis2Blender", f"Failed: {e}")
                 QgsMessageLog.logMessage(str(e), "QGIS2Blender", Qgis.Critical)
