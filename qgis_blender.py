@@ -512,9 +512,6 @@ class QgisBlender:
         else:
             warp_input = self.build_vrt(raster_layers, workdir, step_args["merge"])
 
-        # No longer needed since we're using mask for AOI
-        #target_extent = self.compute_target_extent(target_crs)
-
         warp_out = os.path.join(workdir, "01_warp.tif")
         clip_out = os.path.join(workdir, "02_clip.tif")
 
@@ -558,7 +555,6 @@ class QgisBlender:
         """Run method that performs all the real work"""
 
         # Create the dialog with elements (after translation) and keep reference
-        # Only create GUI ONCE in callback, so that it will only load when the plugin is started
         if self.first_start == True:
             self.first_start = False
             self.dlg = QgisBlenderDialog()
@@ -572,7 +568,7 @@ class QgisBlender:
         self.populate_raster_list()
         # Refresh the list of clipping layers each time the dialog opens 
         self.populate_mask_layer_combo()
-        # show the dialog
+        # Show the dialog
         self.dlg.show()
         # Run the dialog event loop
         result = self.dlg.exec_()
@@ -583,9 +579,6 @@ class QgisBlender:
             out_path = self.dlg.lineEdit_output.text().strip()
             target_crs = self.dlg.lineEdit_target_crs.text().strip()
             mask_layer = self.read_mask_layer()
-            
-            # TK I think this line can be removed. 
-            #step_args = self.read_step_args()
 
             if not rasters:
                 self.iface.messageBar().pushWarning("QgisBlender", "Select at least one raster layer.")
@@ -619,10 +612,3 @@ class QgisBlender:
 
             #print("QGIS2Blender output:", out_path)
             #print ("QGIS2Blender args:", step_args)
-
-
-
-
-
-
-
