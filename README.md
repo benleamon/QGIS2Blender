@@ -43,6 +43,8 @@ If you use a polygon AOI mask, the plugin clips the output to that polygon layer
 
 For best results, create the AOI polygon in the same CRS you plan to use as the target CRS. If the AOI layer uses a different CRS, the output may not align as expected.
 
+Use a saved polygon layer, such as a shapefile. Temporary or scratch layers may not work reliably, especially on Windows.
+
 ## Output behavior
 
 QGIS2Blender is designed for Blender heightmap export, not for preserving original elevation values.
