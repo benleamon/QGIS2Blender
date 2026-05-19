@@ -49,6 +49,8 @@ Use a saved polygon layer, such as a shapefile. Temporary or scratch layers may 
 
 QGIS2Blender is designed for Blender heightmap export, not for preserving original elevation values.
 
+Before scaling, NoData pixels are filled with a user-specified value in the DEM’s elevation units. If left blank, NoData is filled with the minimum valid elevation before scaling.
+
 The final output is rescaled to `0–65535` and exported as `UInt16`. This makes it suitable for Blender heightmap workflows, but the output should not be treated as a DEM with original elevation units.
 
 ## Known limitations
