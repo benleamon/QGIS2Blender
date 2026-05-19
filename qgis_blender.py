@@ -461,6 +461,87 @@ class QgisBlender:
         )
 
         return min_val, max_val
+    
+    def read_nodata_fill_value(self):
+        """
+        Read optional NoData fill value from the dialog.
+
+        Returns:
+            None if blank, meaning: use valid raster minimum.
+            float if the user entered a number.
+        """
+        text = self.dlg.lineEdit_nodata_fill.text().strip()
+
+        if not text:
+            return None
+
+        try:
+            return float(text)
+        except ValueError:
+            raise ValueError(
+                f"Invalid NoData fill value: '{text}'. Please enter a number, or leave it blank."
+            )
+        
+    def get_raster_nodata_value(self, raster_path):
+        """Return band 1 NoData value, or None if no NoData value is set."""
+        layer = QgsRasterLayer(raster_path, "temp_nodata_layer")
+        if not layer.isValid():
+            raise RuntimeError(f"Could not load raster for NoData check: {raster_path}")
+
+        provider = layer.dataProvider()
+
+        if provider.sourceHasNoDataValue(1):
+            return provider.sourceNoDataValue(1)
+
+        return None
+    
+    def step_fill_nodata_with_value(self, input_path, fill_value, output_path):
+        """
+        Replace NoData pixels with a chosen value before scaling.
+
+        fill_value is in the DEM's original elevation units.
+        """
+        nodata = self.get_raster_nodata_value(input_path)
+
+        if nodata is None:
+            QgsMessageLog.logMessage(
+                "No source NoData value found; skipping NoData fill step.",
+                "QGIS2Blender",
+                Qgis.Info
+            )
+            return input_path
+
+        # Use GDAL raster calculator / gdal_calc.py.
+        # where(A == nodata, fill_value, A)
+        formula = f"where(A=={nodata}, {fill_value}, A)"
+
+        params = {
+            "INPUT_A": input_path,
+            "BAND_A": 1,
+            "FORMULA": formula,
+            "NO_DATA": None,
+            "RTYPE": 5,  # Float32 in many QGIS/GDAL Processing versions
+            "OPTIONS": "",
+            "EXTRA": "--hideNoData",
+            "OUTPUT": output_path,
+        }
+
+        QgsMessageLog.logMessage(
+            f"Filling NoData: nodata={nodata}, fill_value={fill_value}, formula={formula}",
+            "QGIS2Blender",
+            Qgis.Info
+        )
+
+        res = processing.run("gdal:rastercalculator", params)
+        filled_out = res.get("OUTPUT", output_path)
+
+        if not os.path.exists(filled_out):
+            raise RuntimeError(
+                f"NoData fill step did not create output: {filled_out}\n"
+                "Check Log Messages → Processing for GDAL error details."
+            )
+
+        return filled_out
 
     def step_translate(self, input_path, translate_args, output_path, do_scale=True):
         """Translate raster to final output path, optionally scaling to UInt16."""
@@ -518,11 +599,6 @@ class QgisBlender:
         warped = self.step_warp(warp_input, target_crs, step_args["warp"], warp_out)
 
         if mask_layer is not None:
-            QgsMessageLog.logMessage(
-                f"Using AOI mask layer: {mask_layer.name()}",
-                "QGIS2Blender",
-                Qgis.Info
-            )
             clipped_or_warped = self.step_clip_by_mask(
                 warped,
                 mask_layer,
@@ -538,8 +614,32 @@ class QgisBlender:
             )
             clipped_or_warped = warped
 
-        final_out = self.step_translate(
+        # Fill NoData before scaling/export
+        user_fill_value = self.read_nodata_fill_value()
+
+        if user_fill_value is None:
+            # Blank field = use valid raster minimum
+            min_val, _ = self.get_raster_min_max(clipped_or_warped)
+            fill_value = min_val
+        else:
+            fill_value = user_fill_value
+
+        filled_out = os.path.join(workdir, "03_filled_nodata.tif")
+        filled = self.step_fill_nodata_with_value(
             clipped_or_warped,
+            fill_value,
+            filled_out
+        )
+        filled_min, filled_max = self.get_raster_min_max(filled)
+        #Add logging 
+        QgsMessageLog.logMessage(
+            f"After NoData fill: min={filled_min}, max={filled_max}, fill_value={fill_value}",
+            "QGIS2Blender",
+            Qgis.Info
+        )
+
+        final_out = self.step_translate(
+            filled,
             step_args["translate"],
             out_path
         )

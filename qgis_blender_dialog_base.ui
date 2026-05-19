@@ -28,9 +28,9 @@
         <property name="geometry">
          <rect>
           <x>0</x>
-          <y>0</y>
+          <y>-337</y>
           <width>767</width>
-          <height>918</height>
+          <height>997</height>
          </rect>
         </property>
         <layout class="QVBoxLayout" name="verticalLayout_6">
@@ -155,6 +155,27 @@
              <widget class="QLabel" name="label_8">
               <property name="text">
                <string>Note: Output is rescaled to 0 - 65535 and exported as UInt16 for use in Blender.</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="label_2">
+              <property name="text">
+               <string>NoData Fill value: (in DEM units before scaling)</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="lineEdit_nodata_fill">
+              <property name="text">
+               <string/>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="label_9">
+              <property name="text">
+               <string>Blank is minimum valid elevation. </string>
               </property>
              </widget>
             </item>
