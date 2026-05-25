@@ -729,12 +729,3 @@ class QgisBlender:
                 self.iface.messageBar().pushCritical("Qgis2Blender", f"Failed: {e}")
                 QgsMessageLog.logMessage(str(e), "QGIS2Blender", Qgis.Critical)
                 raise
-
-            # Confirm plugin is running
-            #self.iface.messageBar().pushInfo(
-            #    "QgisBlender",
-            #    f"QGIS2Blender: {len(rasters)} raster(s) selected. CRS = {target_crs}"
-            #)
-
-            #print("QGIS2Blender output:", out_path)
-            #print ("QGIS2Blender args:", step_args)
