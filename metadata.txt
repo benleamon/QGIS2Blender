@@ -12,6 +12,7 @@ email=ben.leamon@gmail.com
 
 about=This plugin prepares DEMs for use in Blender.
 
+homepage=https://github.com/benleamon/QGIS2Blender
 tracker=https://github.com/benleamon/QGIS2Blender/issues
 repository=https://github.com/benleamon/QGIS2Blender
 # End of mandatory metadata
