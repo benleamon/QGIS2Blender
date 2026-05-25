@@ -30,7 +30,7 @@
           <x>0</x>
           <y>0</y>
           <width>785</width>
-          <height>818</height>
+          <height>793</height>
          </rect>
         </property>
         <layout class="QVBoxLayout" name="verticalLayout_6">
@@ -86,9 +86,6 @@
              <widget class="QgsProjectionSelectionWidget" name="mQgsProjectionSelectionWidget_target_crs"/>
             </item>
             <item>
-             <widget class="QLineEdit" name="lineEdit_target_crs"/>
-            </item>
-            <item>
              <widget class="QLabel" name="label_5">
               <property name="text">
                <string>Additional GDAL Warp Args:</string>
@@ -101,7 +98,6 @@
            </layout>
            <zorder>label_5</zorder>
            <zorder>label_6</zorder>
-           <zorder>lineEdit_target_crs</zorder>
            <zorder>plainTextEdit_warp_args</zorder>
            <zorder>mQgsProjectionSelectionWidget_target_crs</zorder>
           </widget>
