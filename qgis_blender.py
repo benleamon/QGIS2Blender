@@ -551,7 +551,7 @@ class QgisBlender:
             "BAND_A": 1,
             "FORMULA": formula,
             "NO_DATA": None,
-            "RTYPE": 5,  # Float32 in many QGIS/GDAL Processing versions
+            "RTYPE": 5,
             "OPTIONS": "",
             "EXTRA": "--hideNoData",
             "OUTPUT": output_path,
