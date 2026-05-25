@@ -660,6 +660,7 @@ class QgisBlender:
             self.dlg = QgisBlenderDialog()
             # Populate defaults 
             self.populate_default_args()
+            self.dlg.mQgsProjectionSelectionWidget_target_crs.setCrs(QgsProject.instance().crs())
 
             # Connect dialog buttons to widgets
             self.dlg.pushButton_browse.clicked.connect(self.browse_output)
@@ -677,7 +678,6 @@ class QgisBlender:
         if result:
             rasters = self.read_selected_rasters()
             out_path = self.dlg.lineEdit_output.text().strip()
-            # target_crs = self.dlg.lineEdit_target_crs.text().strip()
             target_crs_obj = self.dlg.mQgsProjectionSelectionWidget_target_crs.crs()
             target_crs = target_crs_obj.authid()
             mask_layer = self.read_mask_layer()
@@ -688,8 +688,8 @@ class QgisBlender:
             if not out_path:
                 self.iface.messageBar().pushWarning("QgisBlender", "Choose an output file path.")
                 return
-            if not target_crs:
-                self.iface.messageBar().pushWarning("QgisBlender", "Enter a target CRS (e.g. EPSG:3857).")
+            if not target_crs_obj.isValid():
+                self.iface.messageBar().pushWarning("QGIS2Blender", "Choose a valid target CRS.")
                 return
             # I think we don't actually want this... just default to using the whole DEM if no clip-mask.
             # if mask_layer is None:
