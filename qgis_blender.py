@@ -306,6 +306,29 @@ class QgisBlender:
             "translate": self.dlg.plainTextEdit_translate_args.toPlainText().strip(),
         }
     
+    def validate_raster_sources(self, raster_layers):
+        """Check that selected raster sources still exist on disk."""
+        missing = []
+
+        for layer in raster_layers:
+            source = layer.source()
+
+            # Strip common QGIS/GDAL source suffixes if present
+            path = source.split("|")[0]
+
+            if not os.path.exists(path):
+                missing.append((layer.name(), source))
+
+        if missing:
+            details = "\n".join(
+                f"- {name}: {source}" for name, source in missing
+            )
+            raise RuntimeError(
+                "One or more selected raster source files could not be found. "
+                "The files may have been moved, renamed, or disconnected.\n\n"
+                f"{details}"
+            )
+    
     def build_vrt(self, raster_layers, workdir, merge_extra_args: str):
         """
         Build a virtual raster from 2+ input rasters and return the path.
@@ -356,9 +379,17 @@ class QgisBlender:
 
     def step_warp(self, input_path, target_crs, warp_args, output_path):
         """Reproject input raster/VRT into target CRS."""
+
+        target_crs_authid = target_crs.authid()
+
+        if not target_crs_authid:
+            raise RuntimeError(
+                "Target CRS has no authority ID. Please choose an EPSG CRS for now."
+            )
+
         warp_params = {
             "INPUT": input_path,
-            "TARGET_CRS": target_crs.authid(),
+            "TARGET_CRS": target_crs_authid,
             "EXTRA": warp_args,
             "OUTPUT": output_path,
         }
@@ -571,17 +602,17 @@ class QgisBlender:
         return final_out
 
 
-    def pipeline_v1(self, raster_layers, out_path: str, target_crs_text: str, mask_layer):
+    def pipeline_v1(self, raster_layers, out_path: str, target_crs, mask_layer):
         """
         Version 1 pipeline:
         optional VRT -> warp -> clip -> translate
         """
         self.ensure_proj_db()
         step_args = self.read_step_args()
+        self.validate_raster_sources(raster_layers)
 
-        target_crs = QgsCoordinateReferenceSystem(target_crs_text)
         if not target_crs.isValid():
-            raise ValueError(f"Invalid CRS: '{target_crs_text}'. Please use an EPSG code.")
+            raise ValueError("Invalid target CRS selected.")
 
         workdir = tempfile.mkdtemp(prefix="qgis_blender_")
         QgsMessageLog.logMessage(f"Workdir: {workdir}", "QGIS2Blender", Qgis.Info)
@@ -660,6 +691,7 @@ class QgisBlender:
             self.dlg = QgisBlenderDialog()
             # Populate defaults 
             self.populate_default_args()
+            self.dlg.mQgsProjectionSelectionWidget_target_crs.setCrs(QgsProject.instance().crs())
 
             # Connect dialog buttons to widgets
             self.dlg.pushButton_browse.clicked.connect(self.browse_output)
@@ -677,7 +709,8 @@ class QgisBlender:
         if result:
             rasters = self.read_selected_rasters()
             out_path = self.dlg.lineEdit_output.text().strip()
-            target_crs = self.dlg.lineEdit_target_crs.text().strip()
+            target_crs = self.dlg.mQgsProjectionSelectionWidget_target_crs.crs()
+
             mask_layer = self.read_mask_layer()
 
             if not rasters:
@@ -686,16 +719,9 @@ class QgisBlender:
             if not out_path:
                 self.iface.messageBar().pushWarning("QgisBlender", "Choose an output file path.")
                 return
-            if not target_crs:
-                self.iface.messageBar().pushWarning("QgisBlender", "Enter a target CRS (e.g. EPSG:3857).")
+            if not target_crs.isValid():
+                self.iface.messageBar().pushWarning("QGIS2Blender", "Choose a valid target CRS.")
                 return
-            # I think we don't actually want this... just default to using the whole DEM if no clip-mask.
-            # if mask_layer is None:
-            #     self.iface.messageBar().pushWarning(
-            #         "QGIS2Blender",
-            #         "Select a polygon mask layer for the AOI."
-            #     )
-            #     return
             
             try:
                 self.pipeline_v1(rasters, out_path, target_crs, mask_layer)
@@ -703,12 +729,3 @@ class QgisBlender:
                 self.iface.messageBar().pushCritical("Qgis2Blender", f"Failed: {e}")
                 QgsMessageLog.logMessage(str(e), "QGIS2Blender", Qgis.Critical)
                 raise
-
-            # Confirm plugin is running
-            #self.iface.messageBar().pushInfo(
-            #    "QgisBlender",
-            #    f"QGIS2Blender: {len(rasters)} raster(s) selected. CRS = {target_crs}"
-            #)
-
-            #print("QGIS2Blender output:", out_path)
-            #print ("QGIS2Blender args:", step_args)
