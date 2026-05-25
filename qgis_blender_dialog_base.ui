@@ -28,9 +28,9 @@
         <property name="geometry">
          <rect>
           <x>0</x>
-          <y>-337</y>
-          <width>767</width>
-          <height>997</height>
+          <y>0</y>
+          <width>785</width>
+          <height>818</height>
          </rect>
         </property>
         <layout class="QVBoxLayout" name="verticalLayout_6">
@@ -83,6 +83,9 @@
              </widget>
             </item>
             <item>
+             <widget class="QgsProjectionSelectionWidget" name="mQgsProjectionSelectionWidget_target_crs"/>
+            </item>
+            <item>
              <widget class="QLineEdit" name="lineEdit_target_crs"/>
             </item>
             <item>
@@ -100,6 +103,7 @@
            <zorder>label_6</zorder>
            <zorder>lineEdit_target_crs</zorder>
            <zorder>plainTextEdit_warp_args</zorder>
+           <zorder>mQgsProjectionSelectionWidget_target_crs</zorder>
           </widget>
          </item>
          <item>
@@ -210,6 +214,13 @@
    </item>
   </layout>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>QgsProjectionSelectionWidget</class>
+   <extends>QWidget</extends>
+   <header>qgsprojectionselectionwidget.h</header>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections>
   <connection>

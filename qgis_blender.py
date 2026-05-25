@@ -677,7 +677,9 @@ class QgisBlender:
         if result:
             rasters = self.read_selected_rasters()
             out_path = self.dlg.lineEdit_output.text().strip()
-            target_crs = self.dlg.lineEdit_target_crs.text().strip()
+            # target_crs = self.dlg.lineEdit_target_crs.text().strip()
+            target_crs_obj = self.dlg.mQgsProjectionSelectionWidget_target_crs.crs()
+            target_crs = target_crs_obj.authid()
             mask_layer = self.read_mask_layer()
 
             if not rasters:
