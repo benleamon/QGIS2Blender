@@ -10,7 +10,7 @@ version=0.1
 author=Ben Leamon
 email=ben.leamon@gmail.com
 
-about=This plugin prepares DEMs for use in Blender.
+about=about=QGIS2Blender prepares DEM rasters for Blender heightmap workflows. It can mosaic multiple DEMs with a VRT, reproject to a target CRS, optionally clip by polygon AOI, fill NoData pixels before scaling, and export a UInt16 GeoTIFF scaled to 0-65535. No external Python dependencies are required.
 
 homepage=https://github.com/benleamon/QGIS2Blender
 tracker=https://github.com/benleamon/QGIS2Blender/issues

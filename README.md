@@ -11,10 +11,14 @@ The plugin can:
 - combine multiple DEMs using a virtual raster (VRT)
 - reproject the data to a target CRS
 - optionally clip the data to an area of interest using a polygon mask layer
+- fill NoData pixels before scaling using either a user-specified elevation value or the minimum valid elevation
 - rescale raster values to `0–65535`
 - export the result as a 16-bit unsigned integer (`UInt16`) GeoTIFF
 
 ## Installation
+
+### From the QGIS Plugin Repository:
+QGIS2Blender has been submitted for review. Once published, it can be installed from `Plugins` > `Manage and Install Plugins`
 
 ### From ZIP
 
@@ -31,11 +35,12 @@ The plugin can:
 2. Optional: create or import a polygon layer to use as an area-of-interest mask.
 3. Open **QGIS2Blender**.
 4. Select the DEM raster layer(s) you want to export.
-5. Enter the target CRS using an EPSG code, for example `EPSG:3857`.
+5. Choose the CRS using the CRS selector.
 6. Optional: select a polygon AOI mask layer. If no mask layer is selected, the plugin exports the full selected raster or raster mosaic extent.
-7. Choose an output file location.
-8. Click **Run**.
-9. Import the resulting GeoTIFF into Blender following a workflow such as [Daniel Huffman’s tutorial](https://somethingaboutmaps.wordpress.com/2017/11/16/creating-shaded-relief-in-blender/).
+7. Choose a NoData value. Default value is the minimum valid terrain height. The NoData fill value is included in the scaling range. Values far outside the DEM’s elevation range may reduce height contrast in the final heightmap.
+8. Choose an output file location.
+9. Click **Run**.
+10. Import the resulting GeoTIFF into Blender following a workflow such as [Daniel Huffman’s tutorial](https://somethingaboutmaps.wordpress.com/2017/11/16/creating-shaded-relief-in-blender/).
 
 ## AOI mask notes
 
@@ -49,14 +54,15 @@ Use a saved polygon layer, such as a shapefile. Temporary or scratch layers may 
 
 QGIS2Blender is designed for Blender heightmap export, not for preserving original elevation values.
 
-Before scaling, NoData pixels are filled with a user-specified value in the DEM’s elevation units. If left blank, NoData is filled with the minimum valid elevation before scaling.
+Before scaling, NoData pixels are filled with a user-specified value in the DEM’s elevation units. If left blank, NoData is filled with the minimum valid elevation before scaling. The NoData fill value is included in the scaling range. Values far outside the DEM’s elevation range may reduce height contrast in the final heightmap.
 
 The final output is rescaled to `0–65535` and exported as `UInt16`. This makes it suitable for Blender heightmap workflows, but the output should not be treated as a DEM with original elevation units.
 
 ## Known limitations
 
-- The plugin currently uses a polygon mask layer for AOI clipping.
+- - AOI clipping currently requires a polygon mask layer.
 - If no AOI mask is selected, the full selected raster or VRT mosaic extent is exported.
+- AOI masks should be saved as vector layers. Temporary layers may not work reliably. 
 - Output values are rescaled for Blender and do not preserve original elevation values.
 - Advanced smoothing and resampling controls are not yet included.
 
