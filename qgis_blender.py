@@ -39,8 +39,14 @@ from qgis.core import (
     QgsApplication,
     )
 
+# Qt5 / Qt6 compatibility
+try:
+    USER_ROLE = Qt.ItemDataRole.UserRole
+except AttributeError:
+    USER_ROLE = Qt.UserRole
+
 # Initialize Qt resources from file resources.py
-from .resources import *
+#from .resources import *
 # Import the code for the dialog
 from .qgis_blender_dialog import QgisBlenderDialog
 
@@ -254,7 +260,7 @@ class QgisBlender:
         for layer in QgsProject.instance().mapLayers().values():
             if isinstance(layer, QgsRasterLayer):
                 item = QListWidgetItem(layer.name())
-                item.setData(Qt.UserRole, layer)
+                item.setData(USER_ROLE, layer)
                 self.dlg.listWidget_rasters.addItem(item)
 
     def populate_mask_layer_combo(self):
@@ -296,7 +302,7 @@ class QgisBlender:
             
     def read_selected_rasters(self):
         items = self.dlg.listWidget_rasters.selectedItems()
-        return [it.data(Qt.UserRole) for it in items]
+        return [it.data(USER_ROLE) for it in items]
     
     def read_step_args(self):
         return {
