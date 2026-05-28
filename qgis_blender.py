@@ -46,7 +46,7 @@ except AttributeError:
     USER_ROLE = Qt.UserRole
 
 # Initialize Qt resources from file resources.py
-#from .resources import *
+# from .resources import *
 # Import the code for the dialog
 from .qgis_blender_dialog import QgisBlenderDialog
 
@@ -206,6 +206,13 @@ class QgisBlender:
                 action)
             self.iface.removeToolBarIcon(action)
 
+    # Qt5/Qt6 Compatability 
+    def exec_dialog(self):
+        """Run dialog in a Qt5/Qt6 compatible way."""
+        if hasattr(self.dlg, "exec"):
+            return self.dlg.exec()
+        return self.dlg.exec_()
+    
     # Helper methods
     def ensure_proj_db(self):
         """Ensure PROJ can find proj.db for GDAL tools spawned by Processing."""
@@ -709,7 +716,7 @@ class QgisBlender:
         # Show the dialog
         self.dlg.show()
         # Run the dialog event loop
-        result = self.dlg.exec_()
+        result = self.exec_dialog()
         
         # See if OK was pressed
         if result:
