@@ -5,7 +5,7 @@
 [general]
 name=QGIS2Blender
 qgisMinimumVersion=3.34
-qgisMaximumVersion=4.99e
+qgisMaximumVersion=4.99
 description=This plugin prepares DEMs for use in Blender.
 version=0.1
 author=Ben Leamon
