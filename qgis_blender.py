@@ -30,11 +30,11 @@ from qgis.PyQt.QtWidgets import QAction, QFileDialog, QListWidgetItem
 from qgis.core import (
     QgsVectorLayer,
     QgsWkbTypes,
-    QgsProject, 
+    QgsProject,
     QgsRasterLayer,
     QgsCoordinateReferenceSystem,
     QgsCoordinateTransform,
-    QgsMessageLog, 
+    QgsMessageLog,
     Qgis,
     QgsApplication,
     )
@@ -85,7 +85,7 @@ class QgisBlender:
         # Check if plugin was started the first time in current QGIS session
         # Must be set in initGui() to survive plugin reloads
         self.first_start = None
-        
+
         # Plugin Defaults
         self.default_gdal_args = {
             "merge": "",
@@ -108,7 +108,6 @@ class QgisBlender:
         """
         # noinspection PyTypeChecker,PyArgumentList,PyCallByClass
         return QCoreApplication.translate('QgisBlender', message)
-
 
     def add_action(
         self,
@@ -197,7 +196,6 @@ class QgisBlender:
         # will be set False in run()
         self.first_start = True
 
-
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
         for action in self.actions:
@@ -206,13 +204,13 @@ class QgisBlender:
                 action)
             self.iface.removeToolBarIcon(action)
 
-    # Qt5/Qt6 Compatability 
+    # Qt5/Qt6 Compatability
     def exec_dialog(self):
         """Run dialog in a Qt5/Qt6 compatible way."""
         if hasattr(self.dlg, "exec"):
             return self.dlg.exec()
         return self.dlg.exec_()
-    
+
     # Helper methods
     def ensure_proj_db(self):
         """Ensure PROJ can find proj.db for GDAL tools spawned by Processing."""
@@ -302,15 +300,15 @@ class QgisBlender:
             "GeoTIFF (*.tif *.tiff)"
         )
 
-        if path: 
+        if path:
             if not path.lower().endswith(('.tif', '.tiff')):
                 path += ".tif"
             self.dlg.lineEdit_output.setText(path)
-            
+
     def read_selected_rasters(self):
         items = self.dlg.listWidget_rasters.selectedItems()
         return [it.data(USER_ROLE) for it in items]
-    
+
     def read_step_args(self):
         return {
             "merge": self.dlg.plainTextEdit_merge_args.toPlainText().strip(),
@@ -318,7 +316,7 @@ class QgisBlender:
             "clip": self.dlg.plainTextEdit_clip_args.toPlainText().strip(),
             "translate": self.dlg.plainTextEdit_translate_args.toPlainText().strip(),
         }
-    
+
     def validate_raster_sources(self, raster_layers):
         """Check that selected raster sources still exist on disk."""
         missing = []
@@ -341,7 +339,7 @@ class QgisBlender:
                 "The files may have been moved, renamed, or disconnected.\n\n"
                 f"{details}"
             )
-    
+
     def build_vrt(self, raster_layers, workdir, merge_extra_args: str):
         """
         Build a virtual raster from 2+ input rasters and return the path.
@@ -369,7 +367,7 @@ class QgisBlender:
             raise RuntimeError(f"VRT step did not create output: {vrt_out}")
 
         return vrt_out
-    
+
     # Currently unused
     def compute_target_extent(self, target_crs):
         """Transform current canvas extent into the target CRS."""
@@ -381,14 +379,13 @@ class QgisBlender:
 
         xform = QgsCoordinateTransform(canvas_crs, target_crs, project)
         return xform.transformBoundingBox(canvas_extent)
-    
+
     def read_mask_layer(self):
         """Return the selected polygon mask layer from the combo box."""
         idx = self.dlg.comboBox_mask_layer.currentIndex()
         if idx < 0:
             return None
-        return self.dlg.comboBox_mask_layer.itemData(idx)   
-
+        return self.dlg.comboBox_mask_layer.itemData(idx)
 
     def step_warp(self, input_path, target_crs, warp_args, output_path):
         """Reproject input raster/VRT into target CRS."""
@@ -418,7 +415,7 @@ class QgisBlender:
             )
 
         return warp_out_actual
-    
+
     def step_clip_by_mask(self, input_path, mask_layer, target_crs, clip_args, output_path):
         """Clip raster by polygon mask layer."""
         clip_params = {
@@ -451,8 +448,8 @@ class QgisBlender:
             )
 
         return clip_out_actual
-    
-    # Currently unused. Replaced by step_clip_by_mask(). Keeping for future canvas AOI option. 
+
+    # Currently unused. Replaced by step_clip_by_mask(). Keeping for future canvas AOI option.
     def step_clip(self, input_path, target_extent, clip_args, output_path):
         """Clip raster by transformed canvas extent."""
         extent_str = (
@@ -480,7 +477,7 @@ class QgisBlender:
             )
 
         return clip_out_actual
-    
+
     def get_raster_min_max(self, raster_path):
         """Return min and max for band 1 of a raster."""
         layer = QgsRasterLayer(raster_path, "temp_stats_layer")
@@ -505,7 +502,7 @@ class QgisBlender:
         )
 
         return min_val, max_val
-    
+
     def read_nodata_fill_value(self):
         """
         Read optional NoData fill value from the dialog.
@@ -525,7 +522,7 @@ class QgisBlender:
             raise ValueError(
                 f"Invalid NoData fill value: '{text}'. Please enter a number, or leave it blank."
             )
-        
+
     def get_raster_nodata_value(self, raster_path):
         """Return band 1 NoData value, or None if no NoData value is set."""
         layer = QgsRasterLayer(raster_path, "temp_nodata_layer")
@@ -538,7 +535,7 @@ class QgisBlender:
             return provider.sourceNoDataValue(1)
 
         return None
-    
+
     def step_fill_nodata_with_value(self, input_path, fill_value, output_path):
         """
         Replace NoData pixels with a chosen value before scaling.
@@ -614,7 +611,6 @@ class QgisBlender:
 
         return final_out
 
-
     def pipeline_v1(self, raster_layers, out_path: str, target_crs, mask_layer):
         """
         Version 1 pipeline:
@@ -675,7 +671,7 @@ class QgisBlender:
             filled_out
         )
         filled_min, filled_max = self.get_raster_min_max(filled)
-        #Add logging 
+        # Add logging
         QgsMessageLog.logMessage(
             f"After NoData fill: min={filled_min}, max={filled_max}, fill_value={fill_value}",
             "QGIS2Blender",
@@ -702,7 +698,7 @@ class QgisBlender:
         if self.first_start == True:
             self.first_start = False
             self.dlg = QgisBlenderDialog()
-            # Populate defaults 
+            # Populate defaults
             self.populate_default_args()
             self.dlg.mQgsProjectionSelectionWidget_target_crs.setCrs(QgsProject.instance().crs())
 
@@ -711,13 +707,13 @@ class QgisBlender:
 
         # Refresh the list of rasters each time the dialog opens
         self.populate_raster_list()
-        # Refresh the list of clipping layers each time the dialog opens 
+        # Refresh the list of clipping layers each time the dialog opens
         self.populate_mask_layer_combo()
         # Show the dialog
         self.dlg.show()
         # Run the dialog event loop
         result = self.exec_dialog()
-        
+
         # See if OK was pressed
         if result:
             rasters = self.read_selected_rasters()
@@ -735,10 +731,10 @@ class QgisBlender:
             if not target_crs.isValid():
                 self.iface.messageBar().pushWarning("QGIS2Blender", "Choose a valid target CRS.")
                 return
-            
+
             try:
                 self.pipeline_v1(rasters, out_path, target_crs, mask_layer)
-            except Exception as e: 
+            except Exception as e:
                 self.iface.messageBar().pushCritical("Qgis2Blender", f"Failed: {e}")
                 QgsMessageLog.logMessage(str(e), "QGIS2Blender", Qgis.Critical)
                 raise
