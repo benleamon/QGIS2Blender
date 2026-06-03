@@ -18,7 +18,7 @@ The plugin can:
 ## Installation
 
 ### From the QGIS Plugin Repository:
-QGIS2Blender has been submitted for review. Once published, it can be installed from `Plugins` > `Manage and Install Plugins`
+QGIS2Blender has been accepted as part of the [QGIS official plugin repository](https://plugins.qgis.org/plugins/qgis_blender/). It can be installed in QGIS from `Plugins` > `Manage and Install Plugins`
 
 ### From ZIP
 
