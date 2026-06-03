@@ -1,5 +1,17 @@
 # Changelog 
 
+## 0.1.1 2026-06-03
+
+### Fixed
+- Fixed `qgisMaximumVersion` metadata so QGIS 4 correctly recognizes the plugin as compatible.
+- Cleaned up minor lint/formatting issues. 
+
+### Changed
+- Removed the experimental flag after testing.
+- Updated README documentation.  
+
+No processing behavior changes from v0.1.0. 
+
 ## 0.1.0 2026-05-27
 
 ### Added
