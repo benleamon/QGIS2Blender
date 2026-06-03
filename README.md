@@ -2,6 +2,10 @@
 
 QGIS2Blender is a QGIS plugin for preparing DEMs for use in Blender heightmap workflows. It is inspired by [Daniel Huffman’s shaded relief process in Blender](https://somethingaboutmaps.wordpress.com/2017/11/16/creating-shaded-relief-in-blender/).
 
+## Why use this plugin? 
+
+Blender can produce beautiful shaded relief and terrain visualizations, but preparing DEMs usually requires several processing steps. QGIS2Blender combines these steps into a simple QGIS workflow. 
+
 ## What it does
 
 QGIS2Blender lets you select one or more DEM raster layers and export them as Blender-ready heightmaps.
